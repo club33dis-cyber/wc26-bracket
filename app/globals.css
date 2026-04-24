@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body { background: #0b1220; color: #e8ecf4; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+
+/* Reusable bits ----------------------------------------------------- */
+.btn        { @apply inline-flex items-center gap-2 px-3 py-2 rounded-md border border-line bg-panel2 text-ink text-sm font-semibold hover:bg-[#26324e] transition; }
+.btn-primary{ @apply bg-accent text-black border-accent hover:bg-[#ffd633]; }
+.btn-danger { @apply bg-[#3d1618] border-[#6a1c22] text-[#ffbdc1] hover:bg-[#571f23]; }
+.btn-ghost  { @apply bg-transparent hover:bg-panel2; }
+
+.input      { @apply bg-[#0f1627] border border-line text-ink rounded-md px-3 py-2 text-sm focus:outline-none focus:border-pick w-full; }
+
+.card       { @apply bg-panel border border-line rounded-lg p-4 shadow-md; }
+.section-h  { @apply text-lg font-semibold tracking-wide flex items-center gap-3 mb-3; }
+.chip       { @apply text-[11px] uppercase tracking-wider px-2 py-[3px] bg-panel2 text-inkdim rounded-full border border-line font-bold; }
+.hint       { @apply text-inkdim text-sm leading-snug; }
+
+/* Bracket specific -------------------------------------------------- */
+.bracket-shell { overflow-x: auto; padding: 10px 4px 30px; }
+.bracket       { display: flex; gap: 20px; min-width: 1600px; padding: 10px 4px; align-items: stretch; }
+.round         { display: flex; flex-direction: column; justify-content: space-around; flex: 0 0 190px; }
+.round.final   { flex-basis: 230px; }
+.round-title   { text-align: center; color: #ffcc00; font-size: 11px; font-weight: 800; letter-spacing: .7px; text-transform: uppercase; margin-bottom: 8px; padding: 4px 0; background: #0a1022; border: 1px solid #2a3553; border-radius: 4px; }
+.round-title .pts { display: block; color: #9aa5bf; font-weight: 600; font-size: 10px; margin-top: 2px; }
+.match         { background: #131c2e; border: 1px solid #2a3553; border-radius: 6px; padding: 5px; margin: 5px 0; position: relative; }
+.match-tag     { position: absolute; top: -8px; left: 8px; background: #131c2e; color: #9aa5bf; font-size: 9px; padding: 1px 5px; border: 1px solid #2a3553; border-radius: 4px; letter-spacing: .3px; }
+
+.slot          { display: grid; grid-template-columns: 26px 1fr auto; gap: 6px; align-items: center; padding: 6px 8px; background: #0f1627; border: 1px solid transparent; border-radius: 4px; cursor: pointer; font-size: 12px; min-height: 30px; transition: background .12s, border-color .12s; }
+.slot + .slot  { margin-top: 3px; }
+.slot:hover:not(.empty):not(.locked) { background: #172238; }
+.slot.picked   { background: #133055; border-color: #1f6feb; color: #cde2ff; font-weight: 700; }
+.slot.correct  { background: #0d3d22; border-color: #2fbf71; color: #b7f0cc; }
+.slot.wrong    { background: #3b1418; border-color: #e5484d; color: #ffc9cb; text-decoration: line-through; }
+.slot.empty    { color: #9aa5bf; font-style: italic; cursor: not-allowed; opacity: .6; }
+.slot.locked   { cursor: default; }
+.slot .seed    { font-size: 9px; color: #9aa5bf; font-weight: 700; text-align: center; }
+.slot .nm      { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.group-row     { display: grid; grid-template-columns: 28px 1fr 56px; gap: 8px; align-items: center; background: #0f1627; border: 1px solid #2a3553; border-radius: 6px; padding: 7px 10px; }
+.group-row select { background: #1a2440; color: #e8ecf4; border: 1px solid #2a3553; border-radius: 4px; font-size: 11px; padding: 3px 5px; cursor: pointer; }
+.group-row[data-pos="1"] { border-left: 4px solid #ffcc00; }
+.group-row[data-pos="2"] { border-left: 4px solid #c9a227; }
+.group-row[data-pos="3"] { border-left: 4px solid #7788aa; }
+.group-row[data-pos="4"] { border-left: 4px solid #3b475f; opacity: .85; }
+
+.third-chip    { background: #0f1627; border: 1px solid #2a3553; padding: 8px 10px; border-radius: 6px; cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; font-size: 12px; transition: all .15s; }
+.third-chip:hover { background: #1a2440; }
+.third-chip.selected { background: #1a3656; border-color: #1f6feb; color: #b6d4ff; font-weight: 700; }
+.third-chip .tag { font-size: 9px; color: #9aa5bf; text-transform: uppercase; }
