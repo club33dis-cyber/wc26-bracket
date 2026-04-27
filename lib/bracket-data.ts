@@ -47,55 +47,80 @@ export type SlotMatch = { id: string; a: string; b: string };
 export type AdvanceMatch = { id: string; aFrom: string; bFrom: string };
 
 /**
- * R32: 16 matches organized as a tree.
+ * R32 — 16 matches matching FIFA Reg. Art. 12.6 (M73-M88).
+ * Our internal IDs M1-M16 map 1:1 to FIFA's M73-M88.
  *
- *   Top half (→ SF1)                Bottom half (→ SF2)
- *   -------------------------        -------------------------
- *   M1  W-A  vs 3rd[T_for_A]         M9   W-I  vs 3rd[T_for_I]
- *   M2  W-E  vs 3rd[T_for_E]         M10  W-L  vs 3rd[T_for_L]
- *   M3  W-C  vs RU-F                 M11  W-H  vs RU-J
- *   M4  W-F  vs RU-C                 M12  W-J  vs RU-H
- *   M5  W-D  vs 3rd[T_for_D]         M13  W-K  vs 3rd[T_for_K]
- *   M6  W-G  vs 3rd[T_for_G]         M14  W-B  vs 3rd[T_for_B]
- *   M7  RU-D vs RU-G                 M15  RU-E vs RU-I
- *   M8  RU-A vs RU-B                 M16  RU-K vs RU-L
+ *   Our ID   FIFA ID   Matchup
+ *   ------   -------   -----------------------
+ *   M1       M73       Runner-up A vs Runner-up B
+ *   M2       M74       Winner E   vs 3rd[T_for_E]
+ *   M3       M75       Winner F   vs Runner-up C
+ *   M4       M76       Winner C   vs Runner-up F
+ *   M5       M77       Winner I   vs 3rd[T_for_I]
+ *   M6       M78       Runner-up E vs Runner-up I
+ *   M7       M79       Winner A   vs 3rd[T_for_A]
+ *   M8       M80       Winner L   vs 3rd[T_for_L]
+ *   M9       M81       Winner D   vs 3rd[T_for_D]
+ *   M10      M82       Winner G   vs 3rd[T_for_G]
+ *   M11      M83       Runner-up K vs Runner-up L
+ *   M12      M84       Winner H   vs Runner-up J
+ *   M13      M85       Winner B   vs 3rd[T_for_B]
+ *   M14      M86       Winner J   vs Runner-up H
+ *   M15      M87       Winner K   vs 3rd[T_for_K]
+ *   M16      M88       Runner-up D vs Runner-up G
  */
 export const R32_MATCHES: SlotMatch[] = [
-  // Top half
-  { id: 'M1',  a: 'WA', b: 'T_for_A' },
-  { id: 'M2',  a: 'WE', b: 'T_for_E' },
-  { id: 'M3',  a: 'WC', b: 'RF' },
-  { id: 'M4',  a: 'WF', b: 'RC' },
-  { id: 'M5',  a: 'WD', b: 'T_for_D' },
-  { id: 'M6',  a: 'WG', b: 'T_for_G' },
-  { id: 'M7',  a: 'RD', b: 'RG' },
-  { id: 'M8',  a: 'RA', b: 'RB' },
-  // Bottom half
-  { id: 'M9',  a: 'WI', b: 'T_for_I' },
-  { id: 'M10', a: 'WL', b: 'T_for_L' },
-  { id: 'M11', a: 'WH', b: 'RJ' },
-  { id: 'M12', a: 'WJ', b: 'RH' },
-  { id: 'M13', a: 'WK', b: 'T_for_K' },
-  { id: 'M14', a: 'WB', b: 'T_for_B' },
-  { id: 'M15', a: 'RE', b: 'RI' },
-  { id: 'M16', a: 'RK', b: 'RL' },
+  { id: 'M1',  a: 'RA', b: 'RB' },         // FIFA M73
+  { id: 'M2',  a: 'WE', b: 'T_for_E' },    // FIFA M74
+  { id: 'M3',  a: 'WF', b: 'RC' },         // FIFA M75
+  { id: 'M4',  a: 'WC', b: 'RF' },         // FIFA M76
+  { id: 'M5',  a: 'WI', b: 'T_for_I' },    // FIFA M77
+  { id: 'M6',  a: 'RE', b: 'RI' },         // FIFA M78
+  { id: 'M7',  a: 'WA', b: 'T_for_A' },    // FIFA M79
+  { id: 'M8',  a: 'WL', b: 'T_for_L' },    // FIFA M80
+  { id: 'M9',  a: 'WD', b: 'T_for_D' },    // FIFA M81
+  { id: 'M10', a: 'WG', b: 'T_for_G' },    // FIFA M82
+  { id: 'M11', a: 'RK', b: 'RL' },         // FIFA M83
+  { id: 'M12', a: 'WH', b: 'RJ' },         // FIFA M84
+  { id: 'M13', a: 'WB', b: 'T_for_B' },    // FIFA M85
+  { id: 'M14', a: 'WJ', b: 'RH' },         // FIFA M86
+  { id: 'M15', a: 'WK', b: 'T_for_K' },    // FIFA M87
+  { id: 'M16', a: 'RD', b: 'RG' },         // FIFA M88
 ];
 
-/** R16 pairings — sequential pairs of R32 matches. */
+/**
+ * R16 — FIFA Reg. Art. 12.7 (M89-M96).
+ *   Our R1 = FIFA M89: W74 vs W77 → our M2 vs M5
+ *   Our R2 = FIFA M90: W73 vs W75 → our M1 vs M3
+ *   Our R3 = FIFA M91: W76 vs W78 → our M4 vs M6
+ *   Our R4 = FIFA M92: W79 vs W80 → our M7 vs M8
+ *   Our R5 = FIFA M93: W83 vs W84 → our M11 vs M12
+ *   Our R6 = FIFA M94: W81 vs W82 → our M9 vs M10
+ *   Our R7 = FIFA M95: W86 vs W88 → our M14 vs M16
+ *   Our R8 = FIFA M96: W85 vs W87 → our M13 vs M15
+ */
 export const R16_MATCHES: AdvanceMatch[] = [
-  { id: 'R1', aFrom: 'M1',  bFrom: 'M2'  },
-  { id: 'R2', aFrom: 'M3',  bFrom: 'M4'  },
-  { id: 'R3', aFrom: 'M5',  bFrom: 'M6'  },
+  { id: 'R1', aFrom: 'M2',  bFrom: 'M5'  },
+  { id: 'R2', aFrom: 'M1',  bFrom: 'M3'  },
+  { id: 'R3', aFrom: 'M4',  bFrom: 'M6'  },
   { id: 'R4', aFrom: 'M7',  bFrom: 'M8'  },
-  { id: 'R5', aFrom: 'M9',  bFrom: 'M10' },
-  { id: 'R6', aFrom: 'M11', bFrom: 'M12' },
-  { id: 'R7', aFrom: 'M13', bFrom: 'M14' },
-  { id: 'R8', aFrom: 'M15', bFrom: 'M16' },
+  { id: 'R5', aFrom: 'M11', bFrom: 'M12' },
+  { id: 'R6', aFrom: 'M9',  bFrom: 'M10' },
+  { id: 'R7', aFrom: 'M14', bFrom: 'M16' },
+  { id: 'R8', aFrom: 'M13', bFrom: 'M15' },
 ];
+
+/**
+ * QF — FIFA Reg. Art. 12.8 (M97-M100).
+ *   Q1 = FIFA M97  : W89 vs W90 → our R1 vs R2
+ *   Q2 = FIFA M98  : W93 vs W94 → our R5 vs R6
+ *   Q3 = FIFA M99  : W91 vs W92 → our R3 vs R4
+ *   Q4 = FIFA M100 : W95 vs W96 → our R7 vs R8
+ */
 export const QF_MATCHES: AdvanceMatch[] = [
   { id: 'Q1', aFrom: 'R1', bFrom: 'R2' },
-  { id: 'Q2', aFrom: 'R3', bFrom: 'R4' },
-  { id: 'Q3', aFrom: 'R5', bFrom: 'R6' },
+  { id: 'Q2', aFrom: 'R5', bFrom: 'R6' },
+  { id: 'Q3', aFrom: 'R3', bFrom: 'R4' },
   { id: 'Q4', aFrom: 'R7', bFrom: 'R8' },
 ];
 export const SF_MATCHES: AdvanceMatch[] = [

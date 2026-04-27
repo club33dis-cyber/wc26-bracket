@@ -1,61 +1,36 @@
 import {
   GROUP_KEYS, R32_MATCHES, R16_MATCHES, QF_MATCHES, SF_MATCHES,
   FINAL_MATCH, POINTS, BracketPicks, SlotMatch, AdvanceMatch,
-  THIRD_PLACE_SLOT_ELIGIBILITY,
 } from './bracket-data';
+import { FIFA_THIRD_PLACE_MATRIX } from './fifa-third-place-matrix';
 
 // =================================================================
-// FIFA 3rd-PLACE ASSIGNMENT
+// FIFA 3rd-PLACE ASSIGNMENT — official 495-row matrix
 //
-// FIFA publishes a matrix of 495 pre-determined assignments (C(12,8)),
-// one for each possible subset of 8 groups providing a 3rd-placer.
-// The governing rule: a group winner never plays a 3rd-placer from
-// a group whose winner-slot eligibility list doesn't include that group
-// (in particular, never from its own group).
+// Source: FIFA World Cup 2026 Regulations (Annex C, pages 80-99).
+// Verified: all 495 rows present, indexed by lex-order over 8-element
+// advancing-group subsets, zero same-group rematches.
 //
-// We don't have the exact 495-row table, so we solve the bipartite
-// matching problem with backtracking: slots iterate in a canonical
-// priority order, and for each slot we try the remaining 3rd-place
-// groups in alphabetical order until we find an assignment that lets
-// every remaining slot succeed.
-//
-// This is deterministic, respects the "no same-group rematch" rule
-// (each slot's eligibility list excludes its own group), and produces
-// the same assignment every time for a given set of 8 groups.
+// The lookup is keyed on the sorted concatenation of 8 advancing
+// groups (e.g., "CDEFGHJK"). Returns a map of T_for_X → group letter
+// whose 3rd-placer fills that slot.
 // =================================================================
-
-const T_SLOT_ORDER = ['T_for_A','T_for_B','T_for_D','T_for_E','T_for_G','T_for_I','T_for_K','T_for_L'];
 
 /**
- * Given 8 group letters whose 3rd-placers advance, assign each to a specific
- * T_for_X slot. Returns { T_for_A: 'C', ... } (slot -> group letter).
- * Returns null if no valid assignment exists (shouldn't happen for valid input).
+ * Given 8 group letters whose 3rd-placers advance, return FIFA's pre-determined
+ * assignment of which 3rd-placer plays which group winner. Output format:
+ *   { T_for_A: 'C', T_for_B: 'F', ... }
+ * Returns null on invalid input.
  */
 export function assignThirdPlacers(advancingGroups: string[]): Record<string, string> | null {
   if (advancingGroups.length !== 8) return null;
-
-  const groups = [...advancingGroups].sort();                  // canonical order
-  const slots = T_SLOT_ORDER;                                   // canonical slot order
-  const assignment: Record<string, string> = {};
-  const usedGroups = new Set<string>();
-
-  function solve(slotIdx: number): boolean {
-    if (slotIdx === slots.length) return true;
-    const slot = slots[slotIdx];
-    const eligible = THIRD_PLACE_SLOT_ELIGIBILITY[slot];
-    for (const g of groups) {
-      if (usedGroups.has(g)) continue;
-      if (!eligible.includes(g)) continue;
-      assignment[slot] = g;
-      usedGroups.add(g);
-      if (solve(slotIdx + 1)) return true;
-      usedGroups.delete(g);
-      delete assignment[slot];
-    }
-    return false;
-  }
-
-  return solve(0) ? assignment : null;
+  const key = [...advancingGroups].sort().join('');
+  const row = FIFA_THIRD_PLACE_MATRIX[key];
+  if (!row) return null;
+  return {
+    T_for_A: row.A, T_for_B: row.B, T_for_D: row.D, T_for_E: row.E,
+    T_for_G: row.G, T_for_I: row.I, T_for_K: row.K, T_for_L: row.L,
+  };
 }
 
 /** Resolve a slot code (WA, RB, T_for_X, M4, R2, Q1, S2, F, TP) to its current team. */
