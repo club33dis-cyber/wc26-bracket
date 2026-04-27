@@ -20,6 +20,9 @@ export default async function PublicBracketPage({ params }: { params: { id: stri
     best_third: rows.best_third ?? [],
     knockout: rows.knockout ?? {},
     tiebreak_goals: rows.tiebreak_goals ?? null,
+    final_score: rows.final_score ?? null,
+    top_scorer: rows.top_scorer ?? null,
+    top_scoring_team: rows.top_scoring_team ?? null,
   };
 
   const { data: actualRow } = await supa.from('actual_results').select('*').eq('id', 1).maybeSingle();
@@ -28,6 +31,9 @@ export default async function PublicBracketPage({ params }: { params: { id: stri
     best_third: actualRow.best_third ?? [],
     knockout: actualRow.knockout ?? {},
     tiebreak_goals: null,
+    final_score: actualRow.final_score ?? null,
+    top_scorer: actualRow.top_scorer ?? null,
+    top_scoring_team: actualRow.top_scoring_team ?? null,
   } : null;
 
   const displayName = (rows as any).profiles?.display_name ?? 'Bracket';

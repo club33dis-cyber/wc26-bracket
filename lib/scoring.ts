@@ -104,8 +104,20 @@ export type ScoreBreakdown = {
   group: number; third: number;
   r32: number; r16: number; qf: number; sf: number;
   tp: number; final: number;
+  exactFinalScore: number;
+  topScorer: number;
+  topScoringTeam: number;
 };
-export type ScoreResult = { score: number; correctChamp: boolean; breakdown: ScoreBreakdown };
+export type ScoreResult = {
+  score: number;
+  correctChamp: boolean;
+  breakdown: ScoreBreakdown;
+  /** Set when both user and actual have a final score; lower = closer. */
+  finalScoreDistance: number | null;
+  exactFinalScore: boolean;
+  correctTopScorer: boolean;
+  correctTopScoringTeam: boolean;
+};
 
 /** Collect all team names the picks set as winners for a given set of matches. */
 function roundWinners(picks: BracketPicks, matches: { id: string }[]): Set<string> {
@@ -125,7 +137,10 @@ function intersectionCount(a: Set<string>, b: Set<string>): number {
 
 export function scoreBracket(picks: BracketPicks, actual: BracketPicks): ScoreResult {
   let score = 0;
-  const breakdown: ScoreBreakdown = { group: 0, third: 0, r32: 0, r16: 0, qf: 0, sf: 0, tp: 0, final: 0 };
+  const breakdown: ScoreBreakdown = {
+    group: 0, third: 0, r32: 0, r16: 0, qf: 0, sf: 0, tp: 0, final: 0,
+    exactFinalScore: 0, topScorer: 0, topScoringTeam: 0,
+  };
 
   // Group stage top-2 advancers
   for (const gk of GROUP_KEYS) {
@@ -165,7 +180,37 @@ export function scoreBracket(picks: BracketPicks, actual: BracketPicks): ScoreRe
     !!picks.knockout['F'] && !!actual.knockout['F'] && picks.knockout['F'] === actual.knockout['F'];
   if (correctChamp) { score += POINTS.FINAL; breakdown.final += POINTS.FINAL; }
 
-  return { score, correctChamp, breakdown };
+  // ---- Side bets + final score prediction --------------------------
+  // Exact final score: both teams' regulation+AET goal totals match.
+  let exactFinalScore = false;
+  let dist: number | null = null;
+  if (picks.final_score && actual.final_score) {
+    dist = Math.abs(picks.final_score.home - actual.final_score.home) +
+           Math.abs(picks.final_score.away - actual.final_score.away);
+    if (dist === 0) {
+      exactFinalScore = true;
+      score += POINTS.EXACT_FINAL_SCORE;
+      breakdown.exactFinalScore += POINTS.EXACT_FINAL_SCORE;
+    }
+  }
+  // Top scorer (case-insensitive whitespace-trimmed match)
+  const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+  const correctTopScorer = !!picks.top_scorer && !!actual.top_scorer
+    && norm(picks.top_scorer) === norm(actual.top_scorer);
+  if (correctTopScorer) { score += POINTS.TOP_SCORER; breakdown.topScorer += POINTS.TOP_SCORER; }
+
+  // Top scoring team (exact match — drawn from canonical team list)
+  const correctTopScoringTeam = !!picks.top_scoring_team && !!actual.top_scoring_team
+    && picks.top_scoring_team === actual.top_scoring_team;
+  if (correctTopScoringTeam) { score += POINTS.TOP_SCORING_TEAM; breakdown.topScoringTeam += POINTS.TOP_SCORING_TEAM; }
+
+  return {
+    score, correctChamp, breakdown,
+    finalScoreDistance: dist,
+    exactFinalScore,
+    correctTopScorer,
+    correctTopScoringTeam,
+  };
 }
 
 export function picksCount(b: BracketPicks): { total: number; max: number } {

@@ -27,6 +27,9 @@ export async function POST(req: Request) {
   const best_third = body.best_third ?? [];
   const knockout = body.knockout ?? {};
   const champ_tournament_goals = body.champ_tournament_goals ?? null;
+  const final_score = body.final_score ?? null;
+  const top_scorer = body.top_scorer ?? null;
+  const top_scoring_team = body.top_scoring_team ?? null;
 
   const serviceUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -38,11 +41,15 @@ export async function POST(req: Request) {
   // 1. Save actual results
   const { error: upsertErr } = await admin.from('actual_results').upsert({
     id: 1, group_order, best_third, knockout, champ_tournament_goals,
+    final_score, top_scorer, top_scoring_team,
     updated_at: new Date().toISOString(),
   });
   if (upsertErr) return NextResponse.json({ error: upsertErr.message }, { status: 500 });
 
-  const actual: BracketPicks = { group_order, best_third, knockout, tiebreak_goals: null };
+  const actual: BracketPicks = {
+    group_order, best_third, knockout, tiebreak_goals: null,
+    final_score, top_scorer, top_scoring_team,
+  };
 
   // 2. Rescore all brackets in pages of 500
   let rescored = 0;
@@ -51,7 +58,7 @@ export async function POST(req: Request) {
   while (true) {
     const { data: rows, error } = await admin
       .from('brackets')
-      .select('user_id, group_order, best_third, knockout')
+      .select('user_id, group_order, best_third, knockout, final_score, top_scorer, top_scoring_team')
       .range(from, from + pageSize - 1);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!rows || rows.length === 0) break;
@@ -62,6 +69,9 @@ export async function POST(req: Request) {
         best_third: r.best_third ?? [],
         knockout: r.knockout ?? {},
         tiebreak_goals: null,
+        final_score: r.final_score ?? null,
+        top_scorer: r.top_scorer ?? null,
+        top_scoring_team: r.top_scoring_team ?? null,
       };
       const { score, correctChamp } = scoreBracket(picks, actual);
       return { user_id: r.user_id, score, correct_champ: correctChamp };

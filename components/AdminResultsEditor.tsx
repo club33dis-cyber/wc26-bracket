@@ -28,6 +28,9 @@ export default function AdminResultsEditor({ initialResults, champGoalsInit }: P
           best_third: picks.best_third,
           knockout: picks.knockout,
           champ_tournament_goals: champGoals === '' ? null : +champGoals,
+          final_score: picks.final_score,
+          top_scorer: picks.top_scorer,
+          top_scoring_team: picks.top_scoring_team,
         }),
       });
       const j = await res.json();
@@ -95,18 +98,74 @@ export default function AdminResultsEditor({ initialResults, champGoalsInit }: P
 
   return (
     <div className="space-y-5">
-      <div className="card flex flex-wrap items-center gap-3">
-        <label className="text-xs uppercase tracking-wider text-inkdim">
-          Champion total tournament goals (tiebreaker)
-          <input type="number" min={0} max={99}
-            className="input ml-2 !inline !w-24"
-            value={champGoals}
-            onChange={e => setChampGoals(e.target.value === '' ? '' : Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0)))}
-          />
-        </label>
-        <button className="btn btn-primary ml-auto" onClick={save} disabled={busy}>
-          {busy ? 'Saving & rescoring…' : 'Save results & rescore all brackets'}
-        </button>
+      <div className="card space-y-3">
+        <h3 className="text-accent font-bold">Side bets &amp; final score (auto-synced from openfootball, override here)</h3>
+        <div className="flex flex-wrap gap-3 items-end">
+          <div>
+            <label className="text-xs uppercase tracking-wider text-inkdim block mb-1">Final score (regulation+AET)</label>
+            <div className="flex items-center gap-2">
+              <input type="number" min={0} max={20}
+                className="input !w-20 text-center font-bold"
+                value={picks.final_score?.home ?? ''}
+                onChange={e => {
+                  const v = e.target.value === '' ? null : Math.max(0, Math.min(20, parseInt(e.target.value, 10) || 0));
+                  update(d => {
+                    d.final_score = v === null ? null : { home: v, away: d.final_score?.away ?? 0 };
+                  });
+                }}
+                placeholder="—"
+              />
+              <span className="text-inkdim font-bold">:</span>
+              <input type="number" min={0} max={20}
+                className="input !w-20 text-center font-bold"
+                value={picks.final_score?.away ?? ''}
+                onChange={e => {
+                  const v = e.target.value === '' ? null : Math.max(0, Math.min(20, parseInt(e.target.value, 10) || 0));
+                  update(d => {
+                    d.final_score = v === null ? null : { home: d.final_score?.home ?? 0, away: v };
+                  });
+                }}
+                placeholder="—"
+              />
+              {picks.final_score && picks.final_score.home === picks.final_score.away && (
+                <span className="text-xs uppercase font-bold text-accent2">PKs</span>
+              )}
+            </div>
+          </div>
+          <div className="min-w-[200px]">
+            <label className="text-xs uppercase tracking-wider text-inkdim block mb-1">Top scorer (Golden Boot)</label>
+            <input type="text" className="input"
+              value={picks.top_scorer ?? ''}
+              onChange={e => {
+                const v = e.target.value;
+                update(d => { d.top_scorer = v === '' ? null : v; });
+              }}
+              placeholder="e.g., Kylian Mbappé"
+            />
+          </div>
+          <div className="min-w-[200px]">
+            <label className="text-xs uppercase tracking-wider text-inkdim block mb-1">Top scoring team</label>
+            <input type="text" className="input"
+              value={picks.top_scoring_team ?? ''}
+              onChange={e => {
+                const v = e.target.value;
+                update(d => { d.top_scoring_team = v === '' ? null : v; });
+              }}
+              placeholder="e.g., Brazil"
+            />
+          </div>
+          <label className="text-xs uppercase tracking-wider text-inkdim">
+            <span className="block mb-1">Champion goals (legacy)</span>
+            <input type="number" min={0} max={99}
+              className="input !w-24"
+              value={champGoals}
+              onChange={e => setChampGoals(e.target.value === '' ? '' : Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0)))}
+            />
+          </label>
+          <button className="btn btn-primary ml-auto" onClick={save} disabled={busy}>
+            {busy ? 'Saving & rescoring…' : 'Save results & rescore all brackets'}
+          </button>
+        </div>
       </div>
       {status && <div className="text-sm text-inkdim">{status}</div>}
 

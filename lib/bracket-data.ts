@@ -143,31 +143,69 @@ export const POINTS = {
   SF: 80,
   TP: 40,
   FINAL: 160,
+  // Side bets and tiebreaker
+  EXACT_FINAL_SCORE: 30,
+  TOP_SCORER: 50,
+  TOP_SCORING_TEAM: 30,
 } as const;
 
 export const MAX_SCORE =
-  24 * POINTS.GROUP_ADV +   // 120
-   8 * POINTS.THIRD +       //  24
-  16 * POINTS.R32 +         // 160
-   8 * POINTS.R16 +         // 160
-   4 * POINTS.QF +          // 160
-   2 * POINTS.SF +          // 160
-  POINTS.TP +               //  40
-  POINTS.FINAL;             // 160 -> 984
+  24 * POINTS.GROUP_ADV +    // 120
+   8 * POINTS.THIRD +        //  24
+  16 * POINTS.R32 +          // 160
+   8 * POINTS.R16 +          // 160
+   4 * POINTS.QF +           // 160
+   2 * POINTS.SF +           // 160
+  POINTS.TP +                //  40
+  POINTS.FINAL +             // 160
+  POINTS.EXACT_FINAL_SCORE + //  30
+  POINTS.TOP_SCORER +        //  50
+  POINTS.TOP_SCORING_TEAM;   //  30  →  1094
 
 // -- Types ----------------------------------------------------------
 export type GroupOrder = Record<string, string[]>;
 export type KnockoutPicks = Record<string, string>;
 
+/** Final score in regulation+AET; equal scores ⇒ went to penalties. */
+export type FinalScore = { home: number; away: number };
+
 export type BracketPicks = {
   group_order: GroupOrder;
   best_third: string[];
   knockout: KnockoutPicks;
+  /** @deprecated kept for backward compat; new tiebreaker is final_score */
   tiebreak_goals: number | null;
+  /** Final scoreline (0-20 each). Equal scores imply PKs (champion = knockout['F']). */
+  final_score: FinalScore | null;
+  /** Player name predicted to be tournament top scorer (Golden Boot). */
+  top_scorer: string | null;
+  /** Team name predicted to score the most goals in the tournament. */
+  top_scoring_team: string | null;
 };
 
 export function defaultPicks(): BracketPicks {
   const group_order: GroupOrder = {};
   for (const k of GROUP_KEYS) group_order[k] = GROUPS[k].slice();
-  return { group_order, best_third: [], knockout: {}, tiebreak_goals: null };
+  return {
+    group_order,
+    best_third: [],
+    knockout: {},
+    tiebreak_goals: null,
+    final_score: null,
+    top_scorer: null,
+    top_scoring_team: null,
+  };
 }
+
+/** Did this final-score prediction go to penalties? (equal scores in 90+AET) */
+export function wentToPenalties(s: FinalScore | null | undefined): boolean {
+  return !!s && s.home === s.away;
+}
+
+/** Manhattan distance between two predicted final scores (for tiebreaker). */
+export function finalScoreDistance(a: FinalScore, b: FinalScore): number {
+  return Math.abs(a.home - b.home) + Math.abs(a.away - b.away);
+}
+
+/** Flat list of every team in every group (for the top-scoring-team dropdown). */
+export const ALL_TEAMS: string[] = GROUP_KEYS.flatMap(k => GROUPS[k]);

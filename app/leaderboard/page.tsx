@@ -22,6 +22,9 @@ export default async function LeaderboardPage({
     best_third: actualRow.best_third ?? [],
     knockout: actualRow.knockout ?? {},
     tiebreak_goals: null,
+    final_score: actualRow.final_score ?? null,
+    top_scorer: actualRow.top_scorer ?? null,
+    top_scoring_team: actualRow.top_scoring_team ?? null,
   } : defaultPicks();
   const gradingStarted = !!actualRow && Object.keys(actualRow.knockout ?? {}).length > 0;
 
@@ -35,7 +38,7 @@ export default async function LeaderboardPage({
 
   let query = supa
     .from('brackets')
-    .select('user_id, group_order, best_third, knockout, tiebreak_goals, score, updated_at, profiles!inner(display_name, email)', { count: 'exact' })
+    .select('user_id, group_order, best_third, knockout, tiebreak_goals, final_score, top_scorer, top_scoring_team, score, updated_at, profiles!inner(display_name, email)', { count: 'exact' })
     .order('score', { ascending: false })
     .order('updated_at', { ascending: true });
 
@@ -55,24 +58,42 @@ export default async function LeaderboardPage({
       best_third: r.best_third ?? [],
       knockout: r.knockout ?? {},
       tiebreak_goals: r.tiebreak_goals ?? null,
+      final_score: r.final_score ?? null,
+      top_scorer: r.top_scorer ?? null,
+      top_scoring_team: r.top_scoring_team ?? null,
     };
-    const { score, correctChamp } = scoreBracket(picks, actual);
+    const result = scoreBracket(picks, actual);
     const prof = (r as any).profiles;
     return {
       userId: r.user_id as string,
       name: (prof?.display_name as string) ?? 'Anonymous',
       champion: picks.knockout['F'] ?? null,
-      score,
-      correctChamp,
-      tb: picks.tiebreak_goals,
+      score: result.score,
+      correctChamp: result.correctChamp,
+      finalScore: picks.final_score,
+      finalScoreDistance: result.finalScoreDistance,
+      exactFinalScore: result.exactFinalScore,
+      correctTopScorer: result.correctTopScorer,
+      correctTopScoringTeam: result.correctTopScoringTeam,
       picks: picksCount(picks),
     };
   });
 
-  // Ensure sort reflects *real* score (not stale denormalized), plus tie-breakers.
+  // Tiebreaker chain: score → correct champion → exact final score →
+  // closest final score → top scorer → top scoring team
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
-    if ((b.correctChamp ? 1 : 0) !== (a.correctChamp ? 1 : 0)) return (b.correctChamp ? 1 : 0) - (a.correctChamp ? 1 : 0);
+    const aC = a.correctChamp ? 1 : 0, bC = b.correctChamp ? 1 : 0;
+    if (aC !== bC) return bC - aC;
+    const aE = a.exactFinalScore ? 1 : 0, bE = b.exactFinalScore ? 1 : 0;
+    if (aE !== bE) return bE - aE;
+    // Closer final-score distance ranks higher; nulls sort last
+    const aD = a.finalScoreDistance ?? 999, bD = b.finalScoreDistance ?? 999;
+    if (aD !== bD) return aD - bD;
+    const aS = a.correctTopScorer ? 1 : 0, bS = b.correctTopScorer ? 1 : 0;
+    if (aS !== bS) return bS - aS;
+    const aT = a.correctTopScoringTeam ? 1 : 0, bT = b.correctTopScoringTeam ? 1 : 0;
+    if (aT !== bT) return bT - aT;
     return 0;
   });
 

@@ -30,6 +30,9 @@ export default async function AdminPage() {
         best_third: actualRow.best_third ?? [],
         knockout: actualRow.knockout ?? {},
         tiebreak_goals: null,
+        final_score: actualRow.final_score ?? null,
+        top_scorer: actualRow.top_scorer ?? null,
+        top_scoring_team: actualRow.top_scoring_team ?? null,
       }
     : defaultPicks();
 

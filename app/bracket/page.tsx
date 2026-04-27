@@ -21,6 +21,9 @@ export default async function MyBracketPage() {
         best_third: rows.best_third ?? [],
         knockout: rows.knockout ?? {},
         tiebreak_goals: rows.tiebreak_goals ?? null,
+        final_score: rows.final_score ?? null,
+        top_scorer: rows.top_scorer ?? null,
+        top_scoring_team: rows.top_scoring_team ?? null,
       }
     : defaultPicks();
 
@@ -32,6 +35,9 @@ export default async function MyBracketPage() {
         best_third: actualRow.best_third ?? [],
         knockout: actualRow.knockout ?? {},
         tiebreak_goals: null,
+        final_score: actualRow.final_score ?? null,
+        top_scorer: actualRow.top_scorer ?? null,
+        top_scoring_team: actualRow.top_scoring_team ?? null,
       }
     : null;
 

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   GROUPS, GROUP_KEYS, R32_MATCHES, R16_MATCHES, QF_MATCHES, SF_MATCHES,
   FINAL_MATCH, POINTS, MAX_SCORE, BracketPicks, defaultPicks, SlotMatch, AdvanceMatch,
-  THIRD_PLACE_SLOT_ELIGIBILITY,
+  THIRD_PLACE_SLOT_ELIGIBILITY, ALL_TEAMS,
 } from '@/lib/bracket-data';
 import { cleanupInvalidPicks, matchTeams, picksCount, scoreBracket, teamFor, thirdPlaceMatchTeams } from '@/lib/scoring';
 import { createSupabaseBrowserClient } from '@/lib/supabase-client';
@@ -41,6 +41,9 @@ export default function BracketEditor({ initialPicks, actual, userId, locked, re
             best_third: next.best_third,
             knockout: next.knockout,
             tiebreak_goals: next.tiebreak_goals,
+            final_score: next.final_score,
+            top_scorer: next.top_scorer,
+            top_scoring_team: next.top_scoring_team,
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id' });
         if (error) throw error;
@@ -313,27 +316,162 @@ export default function BracketEditor({ initialPicks, actual, userId, locked, re
         </div>
       </section>
 
-      {/* Tiebreaker */}
-      <section>
-        <h2 className="section-h">Tiebreaker <span className="chip">Optional</span></h2>
-        <p className="hint mb-2 max-w-2xl">How many total goals do you think your champion pick scores across the tournament? Closest guess wins ties.</p>
-        <div className="flex items-center gap-3">
-          <input
-            type="number" min={0} max={99}
-            className="input !w-28"
-            value={picks.tiebreak_goals ?? ''}
-            onChange={e => {
-              const v = e.target.value === '' ? null : Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0));
-              update(d => { d.tiebreak_goals = v; });
-            }}
-            disabled={readOnly}
-          />
-          <span className="text-sm text-inkdim">goals by {champion ?? 'your champion'}</span>
-        </div>
-      </section>
+      {/* Final score prediction + side bets */}
+      <FinalScoreAndSideBets
+        picks={picks}
+        readOnly={readOnly}
+        champion={champion}
+        runnerUp={runnerUpInFinal(picks)}
+        update={update}
+      />
     </div>
   );
 }
+
+// =====================================================================
+// Final-score prediction + side bets section
+// =====================================================================
+function FinalScoreAndSideBets({
+  picks, readOnly, champion, runnerUp, update,
+}: {
+  picks: BracketPicks;
+  readOnly: boolean;
+  champion: string | null;
+  runnerUp: string | null;
+  update: (mutator: (d: BracketPicks) => void) => void;
+}) {
+  const fs = picks.final_score;
+  const isPK = !!fs && fs.home === fs.away;
+
+  function setHome(v: string) {
+    const n = v === '' ? null : Math.max(0, Math.min(20, parseInt(v, 10) || 0));
+    update(d => {
+      d.final_score = n === null
+        ? null
+        : { home: n, away: d.final_score?.away ?? 0 };
+    });
+  }
+  function setAway(v: string) {
+    const n = v === '' ? null : Math.max(0, Math.min(20, parseInt(v, 10) || 0));
+    update(d => {
+      d.final_score = n === null
+        ? null
+        : { home: d.final_score?.home ?? 0, away: n };
+    });
+  }
+
+  return (
+    <section className="space-y-6">
+      <div>
+        <h2 className="section-h">Final score prediction <span className="chip">+{POINTS.EXACT_FINAL_SCORE} exact</span></h2>
+        <p className="hint mb-3 max-w-2xl">
+          Predict the regulation+extra-time scoreline of the final.
+          Equal scores ⇒ went to penalties (PKs). Closest guess breaks ties on the leaderboard.
+        </p>
+        <div className="card flex flex-wrap items-end gap-3">
+          <div className="text-right">
+            <div className="text-xs text-inkdim mb-1 truncate max-w-[180px]">{champion ?? 'Your champion pick'}</div>
+            <input
+              type="number" min={0} max={20}
+              className="input !w-24 text-2xl font-extrabold text-center"
+              value={fs?.home ?? ''}
+              onChange={e => setHome(e.target.value)}
+              disabled={readOnly || !champion}
+              placeholder="—"
+            />
+          </div>
+          <div className="text-2xl font-extrabold text-inkdim mb-1">:</div>
+          <div className="text-left">
+            <div className="text-xs text-inkdim mb-1 truncate max-w-[180px]">{runnerUp ?? 'Final runner-up'}</div>
+            <input
+              type="number" min={0} max={20}
+              className="input !w-24 text-2xl font-extrabold text-center"
+              value={fs?.away ?? ''}
+              onChange={e => setAway(e.target.value)}
+              disabled={readOnly || !runnerUp}
+              placeholder="—"
+            />
+          </div>
+          {isPK && (
+            <div className="ml-3 text-xs uppercase tracking-widest font-bold text-accent2 bg-[#0d3d22] border border-[#2fbf71] rounded px-2 py-1">
+              ⚽ Decided on PKs · {champion} wins
+            </div>
+          )}
+          {!champion && (
+            <div className="ml-3 text-xs italic text-inkdim">Pick your champion first (final match above)</div>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="section-h">Top scorer <span className="chip">+{POINTS.TOP_SCORER}</span></h2>
+        <p className="hint mb-2 max-w-2xl">
+          Predict the player who wins the Golden Boot (most goals across the entire tournament). Type their full name.
+        </p>
+        <div className="card">
+          <input
+            type="text"
+            list="top-scorer-suggestions"
+            className="input"
+            value={picks.top_scorer ?? ''}
+            onChange={e => {
+              const v = e.target.value;
+              update(d => { d.top_scorer = v === '' ? null : v; });
+            }}
+            disabled={readOnly}
+            placeholder="e.g., Kylian Mbappé"
+          />
+          <datalist id="top-scorer-suggestions">
+            {SUGGESTED_SCORERS.map(s => <option key={s} value={s} />)}
+          </datalist>
+          <p className="text-[11px] text-inkdim mt-2">
+            Suggestions show top stars but you can type any player. Match is case-insensitive.
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <h2 className="section-h">Top scoring team <span className="chip">+{POINTS.TOP_SCORING_TEAM}</span></h2>
+        <p className="hint mb-2 max-w-2xl">
+          Predict which national team scores the most goals across the entire tournament (group stage + knockouts combined).
+        </p>
+        <div className="card">
+          <select
+            className="input"
+            value={picks.top_scoring_team ?? ''}
+            onChange={e => {
+              const v = e.target.value;
+              update(d => { d.top_scoring_team = v === '' ? null : v; });
+            }}
+            disabled={readOnly}
+          >
+            <option value="">— Pick a team —</option>
+            {ALL_TEAMS.slice().sort().map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Determine which team is in the final opposite the user's champion pick. */
+function runnerUpInFinal(picks: BracketPicks): string | null {
+  const finalTeams = matchTeams(FINAL_MATCH, picks);
+  const champ = picks.knockout['F'];
+  if (!champ) return null;
+  return finalTeams.find(t => t && t !== champ) ?? null;
+}
+
+const SUGGESTED_SCORERS = [
+  'Kylian Mbappé', 'Erling Haaland', 'Vinícius Jr.', 'Harry Kane', 'Jude Bellingham',
+  'Lionel Messi', 'Bukayo Saka', 'Lamine Yamal', 'Phil Foden', 'Florian Wirtz',
+  'Lautaro Martínez', 'Julián Álvarez', 'Cristiano Ronaldo', 'Bruno Fernandes',
+  'Neymar', 'Rodrygo', 'Raphinha', 'Mohammed Kudus', 'Victor Osimhen',
+  'Romelu Lukaku', 'Niclas Füllkrug', 'Florian Toppmöller', 'Kai Havertz',
+  'Cody Gakpo', 'Memphis Depay', 'Christian Pulisic', 'Folarin Balogun',
+];
 
 // ---- helpers ---------------------------------------------------------
 function slotHint(code: string | null): string {

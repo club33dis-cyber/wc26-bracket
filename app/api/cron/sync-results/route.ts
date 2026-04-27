@@ -43,15 +43,32 @@ export async function GET(req: Request) {
   }
   const actual = buildActualFromOpenFootball(raw);
 
-  // 2. Upsert actual_results singleton
-  const { error: upErr } = await admin.from('actual_results').upsert({
+  // 2. Upsert actual_results singleton (preserve admin-entered side bets if cron didn't compute them)
+  const { data: existing } = await admin.from('actual_results').select('top_scorer, top_scoring_team, final_score').eq('id', 1).maybeSingle();
+  const upsertPayload: any = {
     id: 1,
     group_order: actual.group_order,
     best_third: actual.best_third,
     knockout: actual.knockout,
     updated_at: new Date().toISOString(),
-  });
+  };
+  if (actual.final_score) upsertPayload.final_score = actual.final_score;
+  else if (existing?.final_score) upsertPayload.final_score = existing.final_score;
+  if (actual.top_scorer) upsertPayload.top_scorer = actual.top_scorer;
+  else if (existing?.top_scorer) upsertPayload.top_scorer = existing.top_scorer;
+  if (actual.top_scoring_team) upsertPayload.top_scoring_team = actual.top_scoring_team;
+  else if (existing?.top_scoring_team) upsertPayload.top_scoring_team = existing.top_scoring_team;
+
+  const { error: upErr } = await admin.from('actual_results').upsert(upsertPayload);
   if (upErr) return NextResponse.json({ error: 'actual_results upsert: ' + upErr.message }, { status: 500 });
+
+  // Use the merged actual for rescoring
+  const mergedActual: BracketPicks = {
+    ...actual,
+    final_score: upsertPayload.final_score ?? null,
+    top_scorer: upsertPayload.top_scorer ?? null,
+    top_scoring_team: upsertPayload.top_scoring_team ?? null,
+  };
 
   // 3. Rescore all brackets (batched)
   let rescored = 0;
@@ -60,7 +77,7 @@ export async function GET(req: Request) {
   while (true) {
     const { data: rows, error } = await admin
       .from('brackets')
-      .select('user_id, group_order, best_third, knockout')
+      .select('user_id, group_order, best_third, knockout, final_score, top_scorer, top_scoring_team')
       .range(from, from + pageSize - 1);
     if (error) return NextResponse.json({ error: 'bracket read: ' + error.message }, { status: 500 });
     if (!rows || rows.length === 0) break;
@@ -71,8 +88,11 @@ export async function GET(req: Request) {
         best_third: r.best_third ?? [],
         knockout: r.knockout ?? {},
         tiebreak_goals: null,
+        final_score: r.final_score ?? null,
+        top_scorer: r.top_scorer ?? null,
+        top_scoring_team: r.top_scoring_team ?? null,
       };
-      const { score, correctChamp } = scoreBracket(picks, actual);
+      const { score, correctChamp } = scoreBracket(picks, mergedActual);
       await admin.from('brackets').update({ score, correct_champ: correctChamp }).eq('user_id', r.user_id);
     }
     rescored += rows.length;

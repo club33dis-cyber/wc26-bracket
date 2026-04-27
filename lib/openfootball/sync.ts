@@ -40,6 +40,7 @@ function normalizeName(raw: string): string {
 }
 
 // A valid openfootball match shape, loosely typed.
+type RawGoal = { name?: string; minute?: number; score1?: number; score2?: number; owngoal?: boolean; penalty?: boolean };
 type RawMatch = {
   num?: number;
   date?: string;
@@ -51,6 +52,8 @@ type RawMatch = {
   score1i?: number | null;           // extra-time / second-leg (rare)
   score2i?: number | null;
   pen?: { score1?: number; score2?: number };
+  goals1?: Array<RawGoal | string>;  // scorers for team1
+  goals2?: Array<RawGoal | string>;  // scorers for team2
   round?: string;                    // e.g., 'Round of 32', 'Matchday 1', 'Final'
   stage?: string;                    // older schema key
   group?: string;                    // e.g., 'Group A'
@@ -385,6 +388,56 @@ export function buildActualFromOpenFootball(data: RawData): BracketPicks {
       const w = knockoutWinner(m);
       if (w) actual.knockout[id] = w;
     }
+  }
+
+  // ----- Final score (regulation + AET, exclude penalty shootout goals) -----
+  // The PDF defines the final as M104. We try the FIFA num first, then fall
+  // back to the 'final' bucket's only match.
+  const finalRaw =
+    matches.find(m => m.num === 104) ??
+    buckets.f.matches[0];
+  if (finalRaw && typeof finalRaw.score1 === 'number' && typeof finalRaw.score2 === 'number') {
+    actual.final_score = { home: finalRaw.score1, away: finalRaw.score2 };
+  }
+
+  // ----- Top scoring team (count goals across every match scored by team) ---
+  const teamGoals: Record<string, number> = {};
+  for (const m of matches) {
+    if (typeof m.score1 !== 'number' || typeof m.score2 !== 'number') continue;
+    const t1 = nameOf(m.team1), t2 = nameOf(m.team2);
+    if (!t1 || !t2) continue;
+    teamGoals[t1] = (teamGoals[t1] ?? 0) + m.score1;
+    teamGoals[t2] = (teamGoals[t2] ?? 0) + m.score2;
+  }
+  const teamRanking = Object.entries(teamGoals).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (teamRanking.length && teamRanking[0][1] > 0) {
+    actual.top_scoring_team = teamRanking[0][0];
+  }
+
+  // ----- Top scorer (count goals per player across every match) ------------
+  // openfootball stores scorers in goals1 / goals2 arrays. Each entry is a
+  // string ("Mbappé") or an object with a `name` field. Own goals do NOT
+  // count toward the scorer (per FIFA Golden Boot rules — they go to the
+  // opponent's tally, but don't credit a specific player).
+  const playerGoals: Record<string, number> = {};
+  function recordGoals(arr: Array<RawGoal | string> | undefined) {
+    if (!arr) return;
+    for (const g of arr) {
+      const obj = typeof g === 'string' ? { name: g } : g;
+      if (!obj?.name) continue;
+      if ((obj as RawGoal).owngoal) continue;
+      const name = obj.name.trim();
+      if (!name) continue;
+      playerGoals[name] = (playerGoals[name] ?? 0) + 1;
+    }
+  }
+  for (const m of matches) {
+    recordGoals(m.goals1);
+    recordGoals(m.goals2);
+  }
+  const playerRanking = Object.entries(playerGoals).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (playerRanking.length && playerRanking[0][1] > 0) {
+    actual.top_scorer = playerRanking[0][0];
   }
 
   return actual;
