@@ -130,7 +130,7 @@ export default async function LeaderboardPage({
               <th className="px-3 py-2 text-left hidden sm:table-cell">Champion pick</th>
               <th className="px-3 py-2 text-right w-24">Score</th>
               <th className="px-3 py-2 text-right w-24 hidden md:table-cell">Picks</th>
-              <th className="px-3 py-2 text-right w-16 hidden md:table-cell">TB</th>
+              <th className="px-3 py-2 text-right w-20 hidden md:table-cell">Final</th>
               <th className="px-3 py-2 text-right w-24">View</th>
             </tr>
           </thead>
@@ -138,6 +138,10 @@ export default async function LeaderboardPage({
             {scored.map((r, i) => {
               const rank = from + i + 1;
               const isMe = r.userId === meId;
+              const fs = r.finalScore;
+              const fsLabel = fs
+                ? (fs.home === fs.away ? `${fs.home}-${fs.away} (PK)` : `${fs.home}-${fs.away}`)
+                : '—';
               return (
                 <tr key={r.userId} className={`border-t border-line ${isMe ? 'bg-[#14243d]' : ''}`}>
                   <td className="px-3 py-2 font-extrabold text-accent">{rank}</td>
@@ -150,7 +154,7 @@ export default async function LeaderboardPage({
                   </td>
                   <td className="px-3 py-2 text-right font-mono font-bold">{r.score}</td>
                   <td className="px-3 py-2 text-right hidden md:table-cell text-inkdim">{r.picks.total}/{r.picks.max}</td>
-                  <td className="px-3 py-2 text-right hidden md:table-cell text-inkdim">{r.tb ?? '—'}</td>
+                  <td className={`px-3 py-2 text-right hidden md:table-cell font-mono ${r.exactFinalScore ? 'text-accent2 font-bold' : 'text-inkdim'}`}>{fsLabel}</td>
                   <td className="px-3 py-2 text-right">
                     <Link href={`/b/${r.userId}`} className="text-accent font-semibold hover:underline">View</Link>
                   </td>
