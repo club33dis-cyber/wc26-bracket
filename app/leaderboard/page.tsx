@@ -26,27 +26,49 @@ export default async function LeaderboardPage({
     top_scorer: actualRow.top_scorer ?? null,
     top_scoring_team: actualRow.top_scoring_team ?? null,
   } : defaultPicks();
-  const gradingStarted = !!actualRow && Object.keys(actualRow.knockout ?? {}).length > 0;
+  // "Grading started" = either group stage or knockout results have been entered.
+  // Previously only checked knockout, so group-stage-only progress showed
+  // "Tournament hasn't started" — fixed.
+  const gradingStarted = !!actualRow && (
+    Object.keys(actualRow.knockout ?? {}).length > 0 ||
+    Object.keys(actualRow.group_order ?? {}).length > 0
+  );
 
-  // Strategy: fetch brackets + profiles joined, ordered by score desc (pre-computed server-side at
-  // save time), then re-score here in JS for accuracy.
-  //   We pre-sort by denormalized `score` col, then re-score the page for display. If the actual
-  //   results have changed since last save, the ordering may be a little stale but will correct
-  //   on next admin save via the /admin page.
+  // Strategy: two separate queries, joined in code by user_id.
+  //
+  // Why not a PostgREST embedded select? `brackets.user_id` and
+  // `profiles.user_id` both reference `auth.users.id` with no direct FK
+  // between them, so PostgREST can't traverse `brackets.profiles!inner(...)`
+  // and silently returns 0 rows. Doing two queries dodges the issue
+  // entirely.
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
-  let query = supa
+  // 1) Brackets, sorted server-side by the denormalized score column.
+  let bracketsQuery = supa
     .from('brackets')
-    .select('user_id, group_order, best_third, knockout, tiebreak_goals, final_score, top_scorer, top_scoring_team, score, updated_at, profiles!inner(display_name, email)', { count: 'exact' })
+    .select('user_id, group_order, best_third, knockout, tiebreak_goals, final_score, top_scorer, top_scoring_team, score, updated_at', { count: 'exact' })
     .order('score', { ascending: false })
     .order('updated_at', { ascending: true });
 
-  if (search) {
-    query = query.ilike('profiles.display_name', `%${search}%`);
+  const { data: bracketRows, count } = await bracketsQuery.range(from, to);
+
+  // 2) Profiles for the user_ids in this page (or filtered by search).
+  const userIds = (bracketRows ?? []).map(r => r.user_id);
+  let profileMap: Record<string, { display_name: string; email?: string }> = {};
+  if (userIds.length > 0) {
+    let pq = supa.from('profiles').select('user_id, display_name, email').in('user_id', userIds);
+    if (search) pq = pq.ilike('display_name', `%${search}%`);
+    const { data: profileRows } = await pq;
+    for (const p of profileRows ?? []) {
+      profileMap[p.user_id] = { display_name: p.display_name, email: p.email };
+    }
   }
 
-  const { data: rows, count } = await query.range(from, to);
+  // If a search term was given, drop any bracket whose profile doesn't match.
+  const rows = search
+    ? (bracketRows ?? []).filter(r => profileMap[r.user_id])
+    : (bracketRows ?? []);
 
   // Currently logged-in user, if any
   const { data: auth } = await supa.auth.getUser();
@@ -63,10 +85,10 @@ export default async function LeaderboardPage({
       top_scoring_team: r.top_scoring_team ?? null,
     };
     const result = scoreBracket(picks, actual);
-    const prof = (r as any).profiles;
+    const prof = profileMap[r.user_id as string];
     return {
       userId: r.user_id as string,
-      name: (prof?.display_name as string) ?? 'Anonymous',
+      name: prof?.display_name ?? 'Anonymous',
       champion: picks.knockout['F'] ?? null,
       score: result.score,
       correctChamp: result.correctChamp,
@@ -105,7 +127,9 @@ export default async function LeaderboardPage({
         <div>
           <h1 className="text-2xl font-extrabold">Leaderboard</h1>
           <p className="hint">
-            {gradingStarted ? 'Scores reflect actual results so far.' : 'Tournament hasn’t started — all scores are 0. Max possible: ' + MAX_SCORE}
+            {gradingStarted
+              ? `Scores reflect actual results so far. Max possible: ${MAX_SCORE}`
+              : `Tournament hasn’t started — all scores are 0. Max possible: ${MAX_SCORE}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
